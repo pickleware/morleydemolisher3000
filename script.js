@@ -1861,23 +1861,9 @@ PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
                   await new Promise((r) => setTimeout(r, 1000));
       
                   if (!this.isRunning) return false;
-      
-                  const nextButton = document.getElementById(
-                    "feedbackActivityFormBtn"
-                  );
-      
-                  if (nextButton) {
-                    const buttonText = nextButton.textContent.trim();
-                    nextButton.click();
-      
-                    console.log(buttonText)
-                  } else {
-                    if (answerContentEl) {
-                      answerContentEl.textContent =
-                        "Submit processed, but next step button not found.";
-                    }
-                    return false;
-                  }
+                  setTimeout(function(){
+                    submitButton.click()
+                }, 1000);
                 } else {
                   if (answerContentEl) {
                     answerContentEl.textContent =
