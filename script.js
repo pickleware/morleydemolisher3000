@@ -734,6 +734,25 @@
           this.setEyeToSleep();
         } catch (err) {}
       }
+
+      getQuizProgress() {
+        const markers = Array.from(
+          document.querySelectorAll(".quiz-action-panelmarkers .question-marker")
+        );
+      
+        const total = markers.length;
+        const completed = markers.filter(m => m.classList.contains("submitted")).length;
+        const activeIndex = markers.findIndex(m => m.classList.contains("active"));
+        const remaining = Math.max(0, total - completed);
+      
+        return {
+          total,
+          completed,
+          remaining,
+          activeIndex,
+          done: total > 0 && completed >= total
+        };
+      }
   
       playVideoOnce(src) {
         return new Promise((resolve) => {
@@ -1847,9 +1866,7 @@ PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
               if (options[index]) {
                 options[index].click();
                 await new Promise((r) => setTimeout(r, 500));
-      
-                if (!this.isRunning) return false;
-      
+            
                 const submitButton = Array.from(
                   document.querySelectorAll("button")
                 ).find((b) => b.textContent.trim() === "Submit");
@@ -1858,17 +1875,16 @@ PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
                   setTimeout(function(){
     submitButton.click()
 }, 3000);
-                  await new Promise((r) => setTimeout(r, 1000));
       
-                  if (!this.isRunning) return false;
                   setTimeout(function(){
                     submitButton.click()
                 }, 1000);
-
-                return await attemptOnce([
-                    ...excludedAnswers,
-                    normalized,
-                  ]);
+                    
+                if (this.getQuizProgress() > 0) {
+                    return true;
+                } else {
+                    return false;
+                }
 
                 } else {
                   if (answerContentEl) {
