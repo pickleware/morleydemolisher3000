@@ -1865,10 +1865,10 @@ PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
                     submitButton.click()
                 }, 1000);
 
-                      return await attemptOnce([
-                        ...excludedAnswers,
-                        normalized,
-                      ]);
+                return await attemptOnce([
+                    ...excludedAnswers,
+                    normalized,
+                  ]);
 
                 } else {
                   if (answerContentEl) {
