@@ -1865,10 +1865,6 @@ PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
                     submitButton.click()
                 }, 1000);
 
-                      await new Promise((r) => setTimeout(r, 1000));
-      
-                      if (!this.isRunning) return false;
-      
                       return await attemptOnce([
                         ...excludedAnswers,
                         normalized,
