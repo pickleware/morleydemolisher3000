@@ -1668,758 +1668,197 @@
       async runSolverLoop() {
         const attemptOnce = async (excludedAnswers = []) => {
           if (!this.isRunning) return false;
+      
           try {
             let queryContent = await this.fetchArticleContent();
-  
-            // detect writing target: prefer TinyMCE iframe, then textarea, then contenteditable
-            const tinyIframe = document.querySelector(".tox-edit-area__iframe");
-            const plainTextarea = document.querySelector("textarea");
-            const contentEditable = document.querySelector(
-              '[contenteditable="true"]'
-            );
-  
-            // --- READY / REFLECT special handling ---
-            try {
-              const href =
-                window.location && window.location.href
-                  ? window.location.href
-                  : "";
-              if (
-                href.includes("/lesson/ready") ||
-                href.includes("/lesson/reflect")
-              ) {
-                // try to read the question via the provided XPath:
-                let readyQuestion = "";
-                try {
-                  const xpathQ =
-                    '//*[@id="before-reading-poll"]/div[1]/p[2]/div/text()';
-                  const res = document.evaluate(
-                    xpathQ,
-                    document,
-                    null,
-                    XPathResult.STRING_TYPE,
-                    null
-                  );
-                  readyQuestion =
-                    res && res.stringValue ? res.stringValue.trim() : "";
-                } catch (e) {
-                  readyQuestion = "";
-                }
-  
-                // fallback options if not found
-                if (!readyQuestion) {
-                  try {
-                    const altXpath =
-                      '//*[@id="before-reading-poll"]/div[1]/p[2]/div';
-                    const node = document.evaluate(
-                      altXpath,
-                      document,
-                      null,
-                      XPathResult.FIRST_ORDERED_NODE_TYPE,
-                      null
-                    ).singleNodeValue;
-                    if (node) readyQuestion = (node.textContent || "").trim();
-                  } catch (e) {}
-                }
-                if (!readyQuestion) {
-                  try {
-                    const fallbackNode =
-                      document.querySelector(
-                        "#before-reading-poll p:nth-of-type(2) div"
-                      ) || document.querySelector("#before-reading-poll p div");
-                    if (fallbackNode)
-                      readyQuestion = (fallbackNode.textContent || "").trim();
-                  } catch (e) {}
-                }
-  
-                if (readyQuestion) {
-                  try {
-                    console.groupCollapsed(
-                      "[smArt] Ready/Reflect detected — question fetched"
-                    );
-                    console.log(readyQuestion);
-                    console.groupEnd();
-                  } catch (e) {}
-  
-                  // check for radio inputs specified by XPaths
-                  const agreeXpath =
-                    '//*[@id="before-reading-poll"]/div[1]/fieldset/div/label[1]/span[1]/input';
-                  const disagreeXpath =
-                    '//*[@id="before-reading-poll"]/div[1]/fieldset/div/label[2]/span[1]/input';
-                  let agreeNode = null,
-                    disagreeNode = null;
-                  try {
-                    agreeNode = document.evaluate(
-                      agreeXpath,
-                      document,
-                      null,
-                      XPathResult.FIRST_ORDERED_NODE_TYPE,
-                      null
-                    ).singleNodeValue;
-                  } catch (e) {
-                    agreeNode = null;
-                  }
-                  try {
-                    disagreeNode = document.evaluate(
-                      disagreeXpath,
-                      document,
-                      null,
-                      XPathResult.FIRST_ORDERED_NODE_TYPE,
-                      null
-                    ).singleNodeValue;
-                  } catch (e) {
-                    disagreeNode = null;
-                  }
-  
-                  // if radio buttons exist — decide and click but DO NOT submit
-                  if (agreeNode || disagreeNode) {
-                    const prompt = `${readyQuestion}\n\nDecide whether you AGREE or DISAGREE with this statement. Respond with exactly one word: AGREE or DISAGREE. NOTHING ELSE`;
-                    try {
-                      console.groupCollapsed(
-                        "[smArt] Sent (Ready/Reflect classification) payload"
-                      );
-                      console.log("q:", prompt);
-                      console.log("article:", this.cachedArticle || null);
-                      console.groupEnd();
-                    } catch (e) {}
-  
-                    const classification = await this.fetchAnswer(prompt);
-                    try {
-                      console.groupCollapsed(
-                        "[smArt] Received (Ready/Reflect) classification"
-                      );
-                      console.log(classification);
-                      console.groupEnd();
-                    } catch (e) {}
-  
-                    const normalized = String(classification || "")
-                      .trim()
-                      .toUpperCase();
-                    let pickAgree = false;
-                    if (
-                      normalized.indexOf("AGREE") !== -1 &&
-                      normalized.indexOf("DISAGREE") === -1
-                    )
-                      pickAgree = true;
-                    else if (
-                      normalized.indexOf("DISAGREE") !== -1 &&
-                      normalized.indexOf("AGREE") === -1
-                    )
-                      pickAgree = false;
-                    else {
-                      if (normalized.startsWith("A")) pickAgree = true;
-                      else if (normalized.startsWith("D")) pickAgree = false;
-                      else pickAgree = true;
-                    }
-  
-                    // click the radio for AGREE or DISAGREE (if available)
-                    try {
-                      if (pickAgree && agreeNode) {
-                        agreeNode.click();
-                        console.log("[smArt] Clicked: agree");
-                      } else if (!pickAgree && disagreeNode) {
-                        disagreeNode.click();
-                        console.log("[smArt] Clicked: disagree");
-                      } else {
-                        console.log(
-                          "[smArt] Radio target missing for chosen option."
-                        );
-                      }
-                    } catch (e) {
-                      console.log(
-                        "[smArt] Error clicking radio:",
-                        e && e.message
-                      );
-                    }
-  
-                    // --- build justification prompt that uses the user's writing settings ---
-                    const level = this.getWLevel();
-                    const minWords = this.getWMin();
-                    const maxWords = this.getWMax();
-                    const mood = this.getWMood();
-  
-                    const starter = pickAgree
-                      ? "I agree because"
-                      : "I disagree because";
-                    let justificationPrompt = `${readyQuestion}\n\n${starter} `;
-  
-                    // add constraints
-                    if (level)
-                      justificationPrompt += `Use English level ${level}. `;
-                    if (minWords && maxWords) {
-                      justificationPrompt += `Use a minimum of ${minWords} words and a maximum of ${maxWords} words. `;
-                    } else if (minWords) {
-                      justificationPrompt += `Use a minimum of ${minWords} words. `;
-                    } else if (maxWords) {
-                      justificationPrompt += `Use a maximum of ${maxWords} words. `;
-                    }
-                    if (mood) justificationPrompt += `${mood} `;
-  
-                    // final instruction: produce a short justification paragraph starting with the starter
-                    justificationPrompt += `Provide a concise justification starting with "${starter}" and keep it as one coherent paragraph. Respond only with the justification (no extra commentary), You are a student. Think carefully before writing, but do not describe your thought process. Do not say things like “here’s how” or “step-by-step.” Just write the final, complete answer clearly and directly. Do not start with phrases like “Sure,” “Here’s your essay,” or anything similar. Write naturally, as a student would.`;
-  
-                    try {
-                      console.groupCollapsed(
-                        "[smArt] Sent (Ready/Reflect justification) payload"
-                      );
-                      console.log("q:", justificationPrompt);
-                      console.groupEnd();
-                    } catch (e) {}
-  
-                    const justificationText = await this.fetchAnswer(
-                      justificationPrompt
-                    );
-  
-                    // post-process — apply blacklist / lowercase
-                    let processed = String(justificationText || "");
-                    try {
-                      const blacklist = this.getWBlacklist() || "";
-                      if (blacklist && blacklist.length > 0) {
-                        const escaped = blacklist
-                          .split("")
-                          .map((ch) =>
-                            ch.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")
-                          )
-                          .join("|");
-                        if (escaped) {
-                          const re = new RegExp(escaped, "g");
-                          processed = processed.replace(re, "");
-                        }
-                      }
-                    } catch (e) {
-                      try {
-                        const blacklist = this.getWBlacklist() || "";
-                        for (let i = 0; i < blacklist.length; i++) {
-                          const ch = blacklist[i];
-                          processed = processed.split(ch).join("");
-                        }
-                      } catch (e2) {}
-                    }
-  
-                    if (this.getWLowercase()) processed = processed.toLowerCase();
-  
-                    // insert the justification into TinyMCE iframe if present, else textarea/contenteditable
-                    try {
-                      const tinyIframeLocal = document.querySelector(
-                        ".tox-edit-area__iframe"
-                      );
-                      const plainTextareaLocal =
-                        document.querySelector("textarea");
-                      const contentEditableLocal = document.querySelector(
-                        '[contenteditable="true"]'
-                      );
-  
-                      if (tinyIframeLocal) {
-                        const iframeDoc =
-                          tinyIframeLocal.contentDocument ||
-                          tinyIframeLocal.contentWindow.document;
-                        if (iframeDoc) {
-                          iframeDoc.body.innerHTML = processed;
-                          setTimeout(() => {
-                            iframeDoc.body.innerHTML += " ";
-                            const inputEvent = new Event("input", {
-                              bubbles: true,
-                            });
-                            iframeDoc.body.dispatchEvent(inputEvent);
-                          }, 300);
-                        } else {
-                          throw new Error("Unable to access iframe document");
-                        }
-                      } else if (plainTextareaLocal) {
-                        plainTextareaLocal.value = processed;
-                        plainTextareaLocal.dispatchEvent(
-                          new Event("input", { bubbles: true })
-                        );
-                      } else if (contentEditableLocal) {
-                        contentEditableLocal.innerHTML = processed;
-                        contentEditableLocal.dispatchEvent(
-                          new Event("input", { bubbles: true })
-                        );
-                      } else {
-                        // fallback show in bubble
-                        const answerContainerEl =
-                          document.getElementById("answerContainer");
-                        const answerContentEl = answerContainerEl
-                          ? answerContainerEl.querySelector("#answerContent")
-                          : null;
-                        if (answerContentEl)
-                          answerContentEl.textContent = processed;
-                        if (answerContainerEl) {
-                          answerContainerEl.style.display = "flex";
-                          answerContainerEl.style.visibility = "visible";
-                          answerContainerEl.classList.add("show");
-                        }
-                      }
-  
-                      // NOTE TO FUTURE SELF: CHANGE IT TO MAKE IT NOT AUTO SUBMIT!!!
-                      this._stoppedByWrite = true;
-                      this.isRunning = false;
-                      try {
-                        await this.stopProcessUI();
-                      } catch (e) {}
-                      return false;
-                    } catch (e) {
-                      // if insertion failed, show the processed text in the bubble
-                      const answerContainerEl =
-                        document.getElementById("answerContainer");
-                      const answerContentEl = answerContainerEl
-                        ? answerContainerEl.querySelector("#answerContent")
-                        : null;
-                      if (answerContentEl)
-                        answerContentEl.textContent = processed;
-                      if (answerContainerEl) {
-                        answerContainerEl.style.display = "flex";
-                        answerContainerEl.style.visibility = "visible";
-                        answerContainerEl.classList.add("show");
-                      }
-  
-                      this._stoppedByWrite = true;
-                      this.isRunning = false;
-                      try {
-                        await this.stopProcessUI();
-                      } catch (e2) {}
-                      return false;
-                    }
-                  } // end radios exist
-  
-                  // else — no radios present, treat as writing target
-                  {
-                    let writingPrompt = `Please provide a detailed written answer based on the following question: ${readyQuestion}, You are a student. Think carefully before writing, but do not describe your thought process. Do not say things like “here’s how” or “step-by-step.” Just write the final, complete answer clearly and directly. Do not start with phrases like “Sure,” “Here’s your essay,” or anything similar. Write naturally, as a student would.`;
-                    const level = this.getWLevel();
-                    const minWords = this.getWMin();
-                    const maxWords = this.getWMax();
-                    const mood = this.getWMood();
-                    if (level) writingPrompt += ` Use English level ${level}.`;
-                    if (minWords && maxWords) {
-                      writingPrompt += ` Use minimum ${minWords} words and maximum ${maxWords} words.`;
-                    } else if (minWords) {
-                      writingPrompt += ` Use minimum ${minWords} words.`;
-                    } else if (maxWords) {
-                      writingPrompt += ` Use maximum ${maxWords} words.`;
-                    }
-                    if (mood) writingPrompt += ` ${mood}`;
-  
-                    try {
-                      console.groupCollapsed(
-                        "[smArt] Sent (Ready/Reflect writing) payload"
-                      );
-                      console.log("q:", writingPrompt);
-                      console.groupEnd();
-                    } catch (e) {}
-  
-                    const answerTextRaw = await this.fetchAnswer(writingPrompt);
-  
-                    let answerTextProcessed = String(answerTextRaw || "");
-                    try {
-                      const blacklist = this.getWBlacklist() || "";
-                      if (blacklist && blacklist.length > 0) {
-                        const chars = blacklist
-                          .split("")
-                          .map((ch) =>
-                            ch.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")
-                          )
-                          .join("|");
-                        if (chars.length > 0) {
-                          const re = new RegExp(chars, "g");
-                          answerTextProcessed = answerTextProcessed.replace(
-                            re,
-                            ""
-                          );
-                        }
-                      }
-                    } catch (e) {
-                      try {
-                        const blacklist = this.getWBlacklist() || "";
-                        for (let i = 0; i < blacklist.length; i++) {
-                          const ch = blacklist[i];
-                          answerTextProcessed = answerTextProcessed
-                            .split(ch)
-                            .join("");
-                        }
-                      } catch (e2) {}
-                    }
-  
-                    if (this.getWLowercase()) {
-                      answerTextProcessed = answerTextProcessed.toLowerCase();
-                    }
-  
-                    try {
-                      console.groupCollapsed(
-                        "[smArt] Received (Ready/Reflect writing) answer (processed)"
-                      );
-                      console.log(answerTextProcessed);
-                      console.groupEnd();
-                    } catch (e) {}
-  
-                    //insert into editor/textarea/contentEditable
-                    try {
-                      const tinyIframeLocal = document.querySelector(
-                        ".tox-edit-area__iframe"
-                      );
-                      const plainTextareaLocal =
-                        document.querySelector("textarea");
-                      const contentEditableLocal = document.querySelector(
-                        '[contenteditable="true"]'
-                      );
-  
-                      if (tinyIframeLocal) {
-                        const iframeDoc =
-                          tinyIframeLocal.contentDocument ||
-                          tinyIframeLocal.contentWindow.document;
-                        if (iframeDoc) {
-                          iframeDoc.body.innerHTML = answerTextProcessed;
-                          setTimeout(() => {
-                            iframeDoc.body.innerHTML += " ";
-                            const inputEvent = new Event("input", {
-                              bubbles: true,
-                            });
-                            iframeDoc.body.dispatchEvent(inputEvent);
-                          }, 300);
-                        } else {
-                          throw new Error("Unable to access iframe document");
-                        }
-                      } else if (plainTextareaLocal) {
-                        plainTextareaLocal.value = answerTextProcessed;
-                        plainTextareaLocal.dispatchEvent(
-                          new Event("input", { bubbles: true })
-                        );
-                      } else if (contentEditableLocal) {
-                        contentEditableLocal.innerHTML = answerTextProcessed;
-                        contentEditableLocal.dispatchEvent(
-                          new Event("input", { bubbles: true })
-                        );
-                      } else {
-                        const answerContainerEl =
-                          document.getElementById("answerContainer");
-                        const answerContentEl = answerContainerEl
-                          ? answerContainerEl.querySelector("#answerContent")
-                          : null;
-                        if (answerContentEl)
-                          answerContentEl.textContent = answerTextProcessed;
-                        if (answerContainerEl) {
-                          answerContainerEl.style.display = "flex";
-                          answerContainerEl.style.visibility = "visible";
-                          answerContainerEl.classList.add("show");
-                        }
-                      }
-  
-                      // stop after insertion
-                      this._stoppedByWrite = true;
-                      this.isRunning = false;
-                      try {
-                        await this.stopProcessUI();
-                      } catch (e) {}
-                      return false;
-                    } catch (e) {
-                      const answerContainerEl =
-                        document.getElementById("answerContainer");
-                      const answerContentEl = answerContainerEl
-                        ? answerContainerEl.querySelector("#answerContent")
-                        : null;
-                      if (answerContentEl)
-                        answerContentEl.textContent =
-                          typeof answerTextProcessed === "string"
-                            ? answerTextProcessed
-                            : String(answerTextProcessed);
-                      if (answerContainerEl) {
-                        answerContainerEl.style.display = "flex";
-                        answerContainerEl.style.visibility = "visible";
-                        answerContainerEl.classList.add("show");
-                      }
-                      this._stoppedByWrite = true;
-                      this.isRunning = false;
-                      try {
-                        await this.stopProcessUI();
-                      } catch (e2) {}
-                      return false;
-                    }
-                  }
-                } // end if readyQuestion exists
-              } // end ready/reflect URL check
-            } catch (e) {
-              console.warn("[smArt] Ready/Reflect handler error", e && e.message);
+      
+            queryContent +=
+              "\n\nPROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).";
+      
+            if (excludedAnswers.length > 0) {
+              queryContent += `\n\nDo not pick letter ${excludedAnswers.join(", ")}.`;
             }
-  
-            // normal writing detection (not ready/reflect)
-            if (tinyIframe || plainTextarea || contentEditable) {
-              let queryContentWriting =
-                queryContent +
-                "\n\n You are a student. Write a detailed answer based on the article and question above. Think carefully before writing, but do not describe your thought process. Do not say things like “here’s how” or “step-by-step.” Just write the final, complete answer clearly and directly. Do not start with phrases like “Sure,” “Here’s your essay,” or anything similar. Write naturally, as a student would.";
-              // append the user's writing settings
-              const level = this.getWLevel();
-              const minWords = this.getWMin();
-              const maxWords = this.getWMax();
-              const mood = this.getWMood();
-              if (level) queryContentWriting += ` Use English level ${level}.`;
-              if (minWords && maxWords)
-                queryContentWriting += ` Use minimum ${minWords} words and maximum ${maxWords} words.`;
-              else if (minWords)
-                queryContentWriting += ` Use minimum ${minWords} words.`;
-              else if (maxWords)
-                queryContentWriting += ` Use maximum ${maxWords} words.`;
-              if (mood) queryContentWriting += ` ${mood}`;
-  
-              try {
-                console.groupCollapsed("[smArt] Sent (writing) payload");
-                console.log("q:", queryContentWriting);
-                console.log("article:", this.cachedArticle || null);
-                console.groupEnd();
-              } catch (e) {}
-  
-              const answerText = await this.fetchAnswer(queryContentWriting);
-  
-              try {
-                console.groupCollapsed("[smArt] Received (writing) answer");
-                console.log(answerText);
-                console.groupEnd();
-              } catch (e) {}
-  
-              if (!this.isRunning) return false;
-  
-              // post-process client-side blacklist / lowercase
-              let processed = String(answerText || "");
-              try {
-                const blacklist = this.getWBlacklist() || "";
-                if (blacklist && blacklist.length > 0) {
-                  const escaped = blacklist
-                    .split("")
-                    .map((ch) => ch.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&"))
-                    .join("|");
-                  if (escaped) {
-                    const re = new RegExp(escaped, "g");
-                    processed = processed.replace(re, "");
-                  }
-                }
-              } catch (e) {
-                try {
-                  const blacklist = this.getWBlacklist() || "";
-                  for (let i = 0; i < blacklist.length; i++) {
-                    const ch = blacklist[i];
-                    processed = processed.split(ch).join("");
-                  }
-                } catch (e2) {}
+      
+            try {
+              console.groupCollapsed("[smArt] Sent (MC) payload");
+              console.log("q:", queryContent);
+              console.log("article:", this.cachedArticle || null);
+              console.groupEnd();
+            } catch (e) {}
+      
+            const randPct = this.getMCRandomPct();
+            let willRandom = false;
+      
+            try {
+              if (randPct > 0) {
+                willRandom = Math.random() * 100 < randPct;
               }
-  
-              if (this.getWLowercase()) processed = processed.toLowerCase();
-  
-              try {
-                if (tinyIframe) {
-                  const iframeDoc =
-                    tinyIframe.contentDocument ||
-                    tinyIframe.contentWindow.document;
-                  if (iframeDoc) {
-                    iframeDoc.body.innerHTML = processed;
-                    setTimeout(() => {
-                      iframeDoc.body.innerHTML += " ";
-                      const inputEvent = new Event("input", { bubbles: true });
-                      iframeDoc.body.dispatchEvent(inputEvent);
-                    }, 500);
-                  } else {
-                    throw new Error("Unable to access iframe document");
-                  }
-                } else if (plainTextarea) {
-                  plainTextarea.value = processed;
-                  plainTextarea.dispatchEvent(
-                    new Event("input", { bubbles: true })
-                  );
-                } else if (contentEditable) {
-                  contentEditable.innerHTML = processed;
-                  contentEditable.dispatchEvent(
-                    new Event("input", { bubbles: true })
-                  );
-                }
-  
-                // stop after write insertion
-                this._stoppedByWrite = true;
-                this.isRunning = false;
-                try {
-                  await this.stopProcessUI();
-                } catch (e) {}
-                return false;
-              } catch (e) {
-                const answerContainerEl =
-                  document.getElementById("answerContainer");
-                const answerContentEl = answerContainerEl
-                  ? answerContainerEl.querySelector("#answerContent")
-                  : null;
-                if (answerContentEl)
-                  answerContentEl.textContent =
-                    typeof processed === "string" ? processed : String(processed);
-                if (answerContainerEl) {
-                  answerContainerEl.style.display = "flex";
-                  answerContainerEl.style.visibility = "visible";
-                  answerContainerEl.classList.add("show");
-                }
-                this._stoppedByWrite = true;
-                this.isRunning = false;
-                try {
-                  await this.stopProcessUI();
-                } catch (e2) {}
-                return false;
-              }
-            } else {
-              // multiple choice mode (unchanged)
-              queryContent +=
-                "\n\nPROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).";
-              if (excludedAnswers.length > 0)
-                queryContent += `\n\nDo not pick letter ${excludedAnswers.join(
-                  ", "
-                )}.`;
-  
-              try {
-                console.groupCollapsed("[smArt] Sent (MC) payload");
-                console.log("q:", queryContent);
-                console.log("article:", this.cachedArticle || null);
-                console.groupEnd();
-              } catch (e) {}
-  
-              const randPct = this.getMCRandomPct();
-              let willRandom = false;
-              try {
-                if (randPct > 0) willRandom = Math.random() * 100 < randPct;
-              } catch (e) {
-                willRandom = false;
-              }
-  
-              let answer = null;
-              if (willRandom) {
-                const letters = ["A", "B", "C", "D"].filter(
-                  (l) => !excludedAnswers.includes(l)
-                );
-                const options = document.querySelectorAll('[role="radio"]');
-                let chosenLetter = null;
-                if (options && options.length > 0) {
-                  const available = letters
-                    .map((l) => l.charCodeAt(0) - "A".charCodeAt(0))
-                    .filter((i) => options[i]);
-                  if (available.length > 0) {
-                    const idx =
-                      available[Math.floor(Math.random() * available.length)];
-                    chosenLetter = String.fromCharCode("A".charCodeAt(0) + idx);
-                  } else {
-                    chosenLetter =
-                      letters[Math.floor(Math.random() * letters.length)];
-                  }
+            } catch (e) {
+              willRandom = false;
+            }
+      
+            let answer = null;
+      
+            if (willRandom) {
+              const letters = ["A", "B", "C", "D"].filter(
+                (l) => !excludedAnswers.includes(l)
+              );
+      
+              const options = document.querySelectorAll('[role="radio"]');
+              let chosenLetter = null;
+      
+              if (options && options.length > 0) {
+                const available = letters
+                  .map((l) => l.charCodeAt(0) - "A".charCodeAt(0))
+                  .filter((i) => options[i]);
+      
+                if (available.length > 0) {
+                  const idx =
+                    available[Math.floor(Math.random() * available.length)];
+                  chosenLetter = String.fromCharCode("A".charCodeAt(0) + idx);
                 } else {
                   chosenLetter =
                     letters[Math.floor(Math.random() * letters.length)];
                 }
-                answer = chosenLetter;
-                try {
-                  console.groupCollapsed("[smArt] Random MC decision");
-                  console.log("Random decision triggered (pct):", randPct);
-                  console.log("Chosen letter:", chosenLetter);
-                  console.groupEnd();
-                } catch (e) {}
               } else {
-                answer = await this.fetchAnswer(queryContent);
-                try {
-                  console.groupCollapsed("[smArt] Received (MC) answer");
-                  console.log(answer);
-                  console.groupEnd();
-                } catch (e) {}
+                chosenLetter = letters[Math.floor(Math.random() * letters.length)];
               }
-  
-              if (!this.isRunning) return false;
-  
-              const raw = String(answer || "");
-              let normalized = "";
-  
-              // find the first A-D/a-d character anywhere in the model output (whitelist)
-              const firstLetterMatch = raw.match(/[A-Da-d]/);
-              if (firstLetterMatch && firstLetterMatch[0]) {
-                normalized = firstLetterMatch[0].toUpperCase();
-              } else {
-                // fallback: strip everything except A-D letters and take the first (if any)
-                const cleaned = raw.replace(/[^A-Da-d]/g, "").toUpperCase();
-                normalized = cleaned ? cleaned.charAt(0) : "";
-              }
-  
-              const answerContainerEl =
-                document.getElementById("answerContainer");
-              const answerContentEl = answerContainerEl
-                ? answerContainerEl.querySelector("#answerContent")
-                : null;
-              if (answerContentEl)
-                answerContentEl.textContent =
-                  normalized || (raw.trim().length ? raw.trim() : answer);
-              if (answerContainerEl) {
-                answerContainerEl.style.display = "flex";
-                answerContainerEl.style.visibility = "visible";
-                answerContainerEl.classList.add("show");
-              }
-  
-              if (
-                ["A", "B", "C", "D"].includes(normalized) &&
-                !excludedAnswers.includes(normalized)
-              ) {
-                const options = document.querySelectorAll('[role="radio"]');
-                const index = normalized.charCodeAt(0) - "A".charCodeAt(0);
-                if (options[index]) {
-                  options[index].click();
-                  await new Promise((r) => setTimeout(r, 500));
+      
+              answer = chosenLetter;
+      
+              try {
+                console.groupCollapsed("[smArt] Random MC decision");
+                console.log("Random decision triggered (pct):", randPct);
+                console.log("Chosen letter:", chosenLetter);
+                console.groupEnd();
+              } catch (e) {}
+            } else {
+              answer = await this.fetchAnswer(queryContent);
+      
+              try {
+                console.groupCollapsed("[smArt] Received (MC) answer");
+                console.log(answer);
+                console.groupEnd();
+              } catch (e) {}
+            }
+      
+            if (!this.isRunning) return false;
+      
+            const raw = String(answer || "");
+            let normalized = "";
+      
+            const firstLetterMatch = raw.match(/[A-Da-d]/);
+            if (firstLetterMatch && firstLetterMatch[0]) {
+              normalized = firstLetterMatch[0].toUpperCase();
+            } else {
+              const cleaned = raw.replace(/[^A-Da-d]/g, "").toUpperCase();
+              normalized = cleaned ? cleaned.charAt(0) : "";
+            }
+      
+            const answerContainerEl = document.getElementById("answerContainer");
+            const answerContentEl = answerContainerEl
+              ? answerContainerEl.querySelector("#answerContent")
+              : null;
+      
+            if (answerContentEl) {
+              answerContentEl.textContent =
+                normalized || (raw.trim().length ? raw.trim() : answer);
+            }
+      
+            if (answerContainerEl) {
+              answerContainerEl.style.display = "flex";
+              answerContainerEl.style.visibility = "visible";
+              answerContainerEl.classList.add("show");
+            }
+      
+            if (
+              ["A", "B", "C", "D"].includes(normalized) &&
+              !excludedAnswers.includes(normalized)
+            ) {
+              const options = document.querySelectorAll('[role="radio"]');
+              const index = normalized.charCodeAt(0) - "A".charCodeAt(0);
+      
+              if (options[index]) {
+                options[index].click();
+                await new Promise((r) => setTimeout(r, 500));
+      
+                if (!this.isRunning) return false;
+      
+                const submitButton = Array.from(
+                  document.querySelectorAll("button")
+                ).find((b) => b.textContent.trim() === "Submit");
+      
+                if (submitButton) {
+                  submitButton.click();
+                  await new Promise((r) => setTimeout(r, 1000));
+      
                   if (!this.isRunning) return false;
-                  const submitButton = Array.from(
-                    document.querySelectorAll("button")
-                  ).find((b) => b.textContent.trim() === "Submit");
-                  if (submitButton) {
-                    submitButton.click();
-                    await new Promise((r) => setTimeout(r, 1000));
-                    if (!this.isRunning) return false;
-                    const nextButton = document.getElementById(
-                      "feedbackActivityFormBtn"
-                    );
-                    if (nextButton) {
-                      const buttonText = nextButton.textContent.trim();
-                      nextButton.click();
-                      if (buttonText === "Try again") {
-                        await new Promise((r) => setTimeout(r, 1000));
-                        if (!this.isRunning) return false;
-                        return await attemptOnce([
-                          ...excludedAnswers,
-                          normalized,
-                        ]);
-                      } else {
-                        await new Promise((r) => setTimeout(r, 1500));
-                        const newQuestionRadio =
-                          document.querySelector('[role="radio"]');
-                        const newSubmitButton = Array.from(
-                          document.querySelectorAll("button")
-                        ).find((b) => b.textContent.trim() === "Submit");
-                        if (newSubmitButton && newQuestionRadio) {
-                          if (!this.isRunning) return false;
-                          return true;
-                        } else {
-                          if (answerContentEl)
-                            answerContentEl.textContent =
-                              "Processing complete or no more questions found.";
-                          return false;
-                        }
-                      }
+      
+                  const nextButton = document.getElementById(
+                    "feedbackActivityFormBtn"
+                  );
+      
+                  if (nextButton) {
+                    const buttonText = nextButton.textContent.trim();
+                    nextButton.click();
+      
+                    if (buttonText === "Try again") {
+                      await new Promise((r) => setTimeout(r, 1000));
+      
+                      if (!this.isRunning) return false;
+      
+                      return await attemptOnce([
+                        ...excludedAnswers,
+                        normalized,
+                      ]);
                     } else {
-                      if (answerContentEl)
-                        answerContentEl.textContent =
-                          "Submit processed, but next step button not found.";
-                      return false;
+                      await new Promise((r) => setTimeout(r, 1500));
+      
+                      const newQuestionRadio =
+                        document.querySelector('[role="radio"]');
+      
+                      const newSubmitButton = Array.from(
+                        document.querySelectorAll("button")
+                      ).find((b) => b.textContent.trim() === "Submit");
+      
+                      if (newSubmitButton && newQuestionRadio) {
+                        if (!this.isRunning) return false;
+                        return true;
+                      } else {
+                        if (answerContentEl) {
+                          answerContentEl.textContent =
+                            "Processing complete or no more questions found.";
+                        }
+                        return false;
+                      }
                     }
                   } else {
-                    if (answerContentEl)
+                    if (answerContentEl) {
                       answerContentEl.textContent =
-                        "Error: Submit button not found.";
+                        "Submit processed, but next step button not found.";
+                    }
                     return false;
                   }
                 } else {
-                  if (answerContentEl)
-                    answerContentEl.textContent = `Error: Option ${normalized} not found on page.`;
+                  if (answerContentEl) {
+                    answerContentEl.textContent =
+                      "Error: Submit button not found.";
+                  }
                   return false;
                 }
               } else {
-                if (answerContentEl)
-                  answerContentEl.textContent = `Model returned: ${
-                    answer || "No valid single letter"
-                  }`;
+                if (answerContentEl) {
+                  answerContentEl.textContent = `Error: Option ${normalized} not found on page.`;
+                }
                 return false;
               }
+            } else {
+              if (answerContentEl) {
+                answerContentEl.textContent = `Model returned: ${
+                  answer || "No valid single letter"
+                }`;
+              }
+              return false;
             }
           } catch (err) {
             if (
@@ -2430,50 +1869,58 @@
             ) {
               return false;
             }
+      
             const answerContainerEl = document.getElementById("answerContainer");
             const answerContentEl = answerContainerEl
               ? answerContainerEl.querySelector("#answerContent")
               : null;
-            if (answerContentEl)
+      
+            if (answerContentEl) {
               answerContentEl.textContent = `Error: ${
                 err && err.message ? err.message : String(err)
               }`;
+            }
+      
             if (answerContainerEl) {
               answerContainerEl.style.display = "flex";
               answerContainerEl.style.visibility = "visible";
               answerContainerEl.classList.add("show");
             }
+      
             return false;
           }
         };
-  
+      
         try {
           while (this.isRunning) {
             const cont = await attemptOnce();
             if (!this.isRunning) break;
             if (!cont) break;
+      
             const waitMs = Number(this.getMCWait()) || this.defaults.mc_wait;
             await new Promise((r) => setTimeout(r, waitMs));
           }
         } finally {
-          if (!this._stoppedByWrite) {
-            this.isRunning = false;
-            const spinnerEl = document.getElementById("ah-spinner");
-            if (spinnerEl) spinnerEl.style.display = "none";
-            try {
-              await this.playVideoOnce(this.getUrl("icons/gotosleep.webm"));
-            } catch (e) {}
-            this.setEyeToSleep();
-            try {
-              console.log("[smArt] stopped");
-            } catch (e) {}
-            const label = document.getElementById("getAnswerButtonText");
-            if (label) label.textContent = "work smArt-er";
-            const btn = document.getElementById("getAnswerButton");
-            if (btn) btn.classList.remove("running");
-          } else {
-            this._stoppedByWrite = false;
-          }
+          this.isRunning = false;
+      
+          const spinnerEl = document.getElementById("ah-spinner");
+          if (spinnerEl) spinnerEl.style.display = "none";
+      
+          try {
+            await this.playVideoOnce(this.getUrl("icons/gotosleep.webm"));
+          } catch (e) {}
+      
+          this.setEyeToSleep();
+      
+          try {
+            console.log("[smArt] stopped");
+          } catch (e) {}
+      
+          const label = document.getElementById("getAnswerButtonText");
+          if (label) label.textContent = "work smArt-er";
+      
+          const btn = document.getElementById("getAnswerButton");
+          if (btn) btn.classList.remove("running");
         }
       }
     }
