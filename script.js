@@ -509,42 +509,20 @@
   
       // -------- fetch article / answer --------
       async fetchArticleContent() {
-        try {
-          const articleContainer = document.querySelector(
-            ".student-quiz-pagedescription .description-wrapper"
-          );
+        const articleEl = document.querySelector(".student-quiz-pagedescription .description-wrapper");
+        const questionEl = document.querySelector(".student-quiz-pagequestion");
       
-          let articleContent = "";
-          if (articleContainer) {
-            const paragraphs = articleContainer.querySelectorAll("p");
-            articleContent = Array.from(paragraphs)
-              .map(p => p.textContent.trim())
-              .filter(Boolean)
-              .join("\n\n");
-          }
+        console.log("articleEl:", articleEl);
+        console.log("questionEl:", questionEl);
       
-          const questionContainer = document.querySelector(
-            ".student-quiz-pagequestion"
-          );
+        const article = articleEl?.innerText?.trim() || "";
+        const question = questionEl?.innerText?.trim() || "";
       
-          let questionContent = "";
-          if (questionContainer) {
-            questionContent = questionContainer.textContent.trim();
-          }
+        console.log("article:", article);
+        console.log("question:", question);
       
-          const writingContainer = document.querySelector("#before-reading-thought");
-          let writingQuestion = "";
-          if (writingContainer) {
-            writingQuestion = writingContainer.textContent.trim();
-          }
-      
-          const combinedContent = `${articleContent}\n\n${questionContent}\n\n${writingQuestion}`.trim();
-          this.cachedArticle = combinedContent;
-          return combinedContent;
-        } catch (err) {
-          console.error("fetchArticleContent failed:", err);
-          return "";
-        }
+        this.cachedArticle = `${article}\n\n${question}`.trim();
+        return this.cachedArticle;
       }
   
       async fetchAnswer(queryContent, retryCount = 0) {
