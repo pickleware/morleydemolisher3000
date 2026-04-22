@@ -1855,7 +1855,9 @@ PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
                 ).find((b) => b.textContent.trim() === "Submit");
       
                 if (submitButton) {
-                  submitButton.click();
+                  setTimeout(function(){
+    submitButton.click()
+}, 3000);
                   await new Promise((r) => setTimeout(r, 1000));
       
                   if (!this.isRunning) return false;
