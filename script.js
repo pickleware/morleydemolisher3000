@@ -510,7 +510,9 @@
       // -------- fetch article / answer --------
       async fetchArticleContent() {
         try {
-          const articleContainer = document.querySelector(".student-quiz-page-description .description-wrapper");
+          const articleContainer = document.querySelector(
+            ".student-quiz-page-description .description-wrapper"
+          );
           let articleContent = "";
           if (articleContainer) {
             const paragraphs = articleContainer.querySelectorAll("p");
@@ -518,15 +520,15 @@
               .map((p) => p.textContent.trim())
               .join(" ");
           }
-  
-          const questionContainer = document.querySelector(".student-quiz-page-question");
+      
+          const questionContainer = document.querySelector(
+            ".student-quiz-page-question"
+          );
           let questionContent = "";
           if (questionContainer)
             questionContent = questionContainer.textContent.trim();
-  
-          let writingQuestion = "um nothing";
-  
-          const combinedContent = `${articleContent}\n\n${questionContent}\n\n${writingQuestion}`;
+      
+          const combinedContent = `${articleContent}\n\n${questionContent}`;
           this.cachedArticle = combinedContent;
           return combinedContent;
         } catch (err) {
