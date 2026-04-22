@@ -1870,9 +1870,7 @@ PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
                     const buttonText = nextButton.textContent.trim();
                     nextButton.click();
       
-                    if (buttonText == "Next") {
-                        console.log("ok")
-                    }
+                    console.log(buttonText)
                   } else {
                     if (answerContentEl) {
                       answerContentEl.textContent =
