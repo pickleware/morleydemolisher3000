@@ -506,7 +506,31 @@
           );
         }, Math.max(800, Number(ms) || 4000));
       }
-  
+      
+      getChoices() {
+        const answerNodes = Array.from(document.querySelectorAll(`
+          .student-quiz-page__answer.answer-card-wrapper[role="radio"],
+          .student-quiz-pageanswer.answer-card-wrapper[role="radio"],
+          .student-quiz-pageanswers [role="radio"],
+          .student-quiz-page__answers [role="radio"]
+        `));
+      
+        return answerNodes.map((el, i) => {
+          const letter =
+            el.querySelector(".answer-card__alpha")?.innerText?.trim() ||
+            el.querySelector(".answer-cardalpha")?.innerText?.trim() ||
+            String.fromCharCode(65 + i);
+      
+          const text =
+            el.querySelector(".answer-card__body")?.innerText?.trim() ||
+            el.querySelector(".answer-cardbody")?.innerText?.trim() ||
+            el.innerText?.trim() ||
+            "";
+      
+          return { letter, text, el };
+        }).filter(c => c.letter && c.text);
+      }
+
       // -------- fetch article / answer --------
       async fetchArticleContent() {
         try {
@@ -1702,9 +1726,20 @@
       
           try {
             let queryContent = await this.fetchArticleContent();
-      
-            queryContent +=
-              "\n\nPROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).";
+const choices = this.getChoices();
+
+if (!choices.length) {
+  console.warn("No choices found");
+}
+
+const choiceLines = choices.map(c => `${c.letter}. ${c.text}`).join("\n");
+
+queryContent = `${queryContent}
+
+CHOICES:
+${choiceLines}
+
+PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
       
             if (excludedAnswers.length > 0) {
               queryContent += `\n\nDo not pick letter ${excludedAnswers.join(", ")}.`;
