@@ -1864,7 +1864,11 @@ PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
                   setTimeout(function(){
                     submitButton.click()
                 }, 1000);
-                    return true;
+
+                return await attemptOnce([
+                    ...excludedAnswers,
+                    normalized,
+                  ]);
                 } else {
                   if (answerContentEl) {
                     answerContentEl.textContent =
