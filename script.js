@@ -514,76 +514,40 @@
           let question = "";
           let title = "";
       
-          const data = window.rtbridgepagedata || {};
-          const questions = Array.isArray(data.questions) ? data.questions : [];
-      
-          if (questions.length) {
-            const q0 = questions[0] || {};
-      
-            title =
-              q0.passageTitle ||
-              q0.title ||
-              q0.passage?.title ||
-              "";
-      
-            article =
-              q0.passageText ||
-              q0.passage ||
-              q0.article ||
-              q0.readingPassage ||
-              q0.text ||
-              "";
-      
-            question =
-              q0.question ||
-              q0.questionText ||
-              q0.prompt ||
-              q0.stem ||
-              "";
-      
-            if (typeof article === "object" && article !== null) {
-              article =
-                article.text ||
-                article.content ||
-                article.body ||
-                "";
-            }
-      
-            if (typeof question === "object" && question !== null) {
-              question =
-                question.text ||
-                question.content ||
-                question.body ||
-                "";
-            }
+          // 1) Title – already working in your logs
+          const titleEl =
+            document.querySelector(".quiz-header-title") ||
+            document.querySelector("[class*='quiz-header-title']");
+          if (titleEl) {
+            title = titleEl.innerText.trim();
           }
       
-          if (!article) {
-            const articleEl =
-              document.querySelector(".student-quiz-pagedescription .description-wrapper") ||
-              document.querySelector(".description-wrapper") ||
-              document.querySelector("[class*='description-wrapper']");
-      
-            article = articleEl?.innerText?.trim() || "";
+          // 2) Passage – this is already working for you
+          const articleEl =
+            document.querySelector(".student-quiz-pagedescription .description-wrapper") ||
+            document.querySelector(".description-wrapper") ||
+            document.querySelector("[class*='description-wrapper']");
+          if (articleEl) {
+            article = Array.from(articleEl.querySelectorAll("p"))
+              .map(p => p.textContent.trim())
+              .filter(Boolean)
+              .join("\n\n");
           }
       
-          if (!question) {
-            const questionEl =
-              document.querySelector(".student-quiz-pagequestion") ||
-              document.querySelector("[class*='student-quiz-pagequestion']");
+          // 3) Question – broaden the selector set
+          let questionEl =
+            document.querySelector(".student-quiz-pagequestion") ||             // legacy
+            document.querySelector(".student-quiz-page__question") ||           // newer BEM
+            document.querySelector("[class*='student-quiz-pagequestion']") ||   // partial
+            document.querySelector("[class*='student-quiz-page__question']");
       
-            question = questionEl?.innerText?.trim() || "";
+          if (questionEl) {
+            // Some variants wrap the text inside <p> inside the question container
+            const p = questionEl.querySelector("p");
+            question = (p ? p.innerText : questionEl.innerText).trim();
           }
       
-          if (!title) {
-            const titleEl =
-              document.querySelector(".quiz-header-title") ||
-              document.querySelector("[class*='quiz-header-title']");
-      
-            title = titleEl?.innerText?.trim() || "";
-          }
-      
-          console.log("rtbridgepagedata questions:", questions);
+          console.log("rtbridgepagedata questions:", window.rtbridgepagedata?.questions || []);
           console.log("title:", title);
           console.log("article:", article);
           console.log("question:", question);
