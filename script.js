@@ -511,27 +511,38 @@
       async fetchArticleContent() {
         try {
           const articleContainer = document.querySelector(
-            ".student-quiz-page-description .description-wrapper"
+            ".student-quiz-pagedescription .description-wrapper"
           );
+      
           let articleContent = "";
           if (articleContainer) {
             const paragraphs = articleContainer.querySelectorAll("p");
             articleContent = Array.from(paragraphs)
-              .map((p) => p.textContent.trim())
-              .join(" ");
+              .map(p => p.textContent.trim())
+              .filter(Boolean)
+              .join("\n\n");
           }
       
           const questionContainer = document.querySelector(
-            ".student-quiz-page-question"
+            ".student-quiz-pagequestion"
           );
-          let questionContent = "";
-          if (questionContainer)
-            questionContent = questionContainer.textContent.trim();
       
-          const combinedContent = `${articleContent}\n\n${questionContent}`;
+          let questionContent = "";
+          if (questionContainer) {
+            questionContent = questionContainer.textContent.trim();
+          }
+      
+          const writingContainer = document.querySelector("#before-reading-thought");
+          let writingQuestion = "";
+          if (writingContainer) {
+            writingQuestion = writingContainer.textContent.trim();
+          }
+      
+          const combinedContent = `${articleContent}\n\n${questionContent}\n\n${writingQuestion}`.trim();
           this.cachedArticle = combinedContent;
           return combinedContent;
         } catch (err) {
+          console.error("fetchArticleContent failed:", err);
           return "";
         }
       }
