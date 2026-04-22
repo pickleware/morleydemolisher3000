@@ -509,20 +509,96 @@
   
       // -------- fetch article / answer --------
       async fetchArticleContent() {
-        const articleEl = document.querySelector(".student-quiz-pagedescription .description-wrapper");
-        const questionEl = document.querySelector(".student-quiz-pagequestion");
+        try {
+          let article = "";
+          let question = "";
+          let title = "";
       
-        console.log("articleEl:", articleEl);
-        console.log("questionEl:", questionEl);
+          const data = window.rtbridgepagedata || {};
+          const questions = Array.isArray(data.questions) ? data.questions : [];
       
-        const article = articleEl?.innerText?.trim() || "";
-        const question = questionEl?.innerText?.trim() || "";
+          if (questions.length) {
+            const q0 = questions[0] || {};
       
-        console.log("article:", article);
-        console.log("question:", question);
+            title =
+              q0.passageTitle ||
+              q0.title ||
+              q0.passage?.title ||
+              "";
       
-        this.cachedArticle = `${article}\n\n${question}`.trim();
-        return this.cachedArticle;
+            article =
+              q0.passageText ||
+              q0.passage ||
+              q0.article ||
+              q0.readingPassage ||
+              q0.text ||
+              "";
+      
+            question =
+              q0.question ||
+              q0.questionText ||
+              q0.prompt ||
+              q0.stem ||
+              "";
+      
+            if (typeof article === "object" && article !== null) {
+              article =
+                article.text ||
+                article.content ||
+                article.body ||
+                "";
+            }
+      
+            if (typeof question === "object" && question !== null) {
+              question =
+                question.text ||
+                question.content ||
+                question.body ||
+                "";
+            }
+          }
+      
+          if (!article) {
+            const articleEl =
+              document.querySelector(".student-quiz-pagedescription .description-wrapper") ||
+              document.querySelector(".description-wrapper") ||
+              document.querySelector("[class*='description-wrapper']");
+      
+            article = articleEl?.innerText?.trim() || "";
+          }
+      
+          if (!question) {
+            const questionEl =
+              document.querySelector(".student-quiz-pagequestion") ||
+              document.querySelector("[class*='student-quiz-pagequestion']");
+      
+            question = questionEl?.innerText?.trim() || "";
+          }
+      
+          if (!title) {
+            const titleEl =
+              document.querySelector(".quiz-header-title") ||
+              document.querySelector("[class*='quiz-header-title']");
+      
+            title = titleEl?.innerText?.trim() || "";
+          }
+      
+          console.log("rtbridgepagedata questions:", questions);
+          console.log("title:", title);
+          console.log("article:", article);
+          console.log("question:", question);
+      
+          const combinedContent = [title, article, question]
+            .filter(Boolean)
+            .join("\n\n")
+            .trim();
+      
+          this.cachedArticle = combinedContent;
+          return combinedContent;
+        } catch (err) {
+          console.error("fetchArticleContent failed:", err);
+          return "";
+        }
       }
   
       async fetchAnswer(queryContent, retryCount = 0) {
