@@ -1870,35 +1870,8 @@ PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
                     const buttonText = nextButton.textContent.trim();
                     nextButton.click();
       
-                    if (buttonText === "Try again") {
-                      await new Promise((r) => setTimeout(r, 1000));
-      
-                      if (!this.isRunning) return false;
-      
-                      return await attemptOnce([
-                        ...excludedAnswers,
-                        normalized,
-                      ]);
-                    } else {
-                      await new Promise((r) => setTimeout(r, 1500));
-      
-                      const newQuestionRadio =
-                        document.querySelector('[role="radio"]');
-      
-                      const newSubmitButton = Array.from(
-                        document.querySelectorAll("button")
-                      ).find((b) => b.textContent.trim() === "Submit");
-      
-                      if (newSubmitButton && newQuestionRadio) {
-                        if (!this.isRunning) return false;
-                        return true;
-                      } else {
-                        if (answerContentEl) {
-                          answerContentEl.textContent =
-                            "Processing complete or no more questions found.";
-                        }
-                        return false;
-                      }
+                    if (buttonText == "Next") {
+                        console.log("ok")
                     }
                   } else {
                     if (answerContentEl) {
