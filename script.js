@@ -1864,21 +1864,16 @@ PROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).`;
                   setTimeout(function(){
                     submitButton.click()
                 }, 1000);
-                  
+
                       await new Promise((r) => setTimeout(r, 1000));
-            
+      
+                      if (!this.isRunning) return false;
+      
                       return await attemptOnce([
                         ...excludedAnswers,
                         normalized,
                       ]);
 
-                  } else {
-                    if (answerContentEl) {
-                      answerContentEl.textContent =
-                        "Submit processed, but next step button not found.";
-                    }
-                    return false;
-                  }
                 } else {
                   if (answerContentEl) {
                     answerContentEl.textContent =
